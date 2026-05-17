@@ -1499,6 +1499,10 @@
         "title": "Instala {slug}",
         "hint": "Anade esta mascota a tu coleccion local"
       },
+      "installPets": {
+        "title": "Instala {count} mascotas",
+        "hint": "Anade estas mascotas a tu coleccion local"
+      },
       "stayUpdated": {
         "title": "Mantente actualizado",
         "hint": "Descarga la ultima version del escritorio y reinicia la mascota si estaba corriendo. Corre cuando quieras."

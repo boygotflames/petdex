@@ -17,6 +17,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 
 import {
+  buildDownloadInstallNext,
   buildPetdexInstallUrl,
   isMacDesktop,
   openPetdexDeepLink,
@@ -87,7 +88,7 @@ export function CollectionActionMenu({ collection }: Props) {
   const installSlugs = truncated ? slugs.slice(0, MAX_SLUGS_IN_COMMAND) : slugs;
   const installCmd = `npx petdex install ${installSlugs.join(" ")}`;
   const petdexInstallUrl = buildPetdexInstallUrl(installSlugs);
-  const downloadHref = `/${locale}/download?next=${encodeURIComponent(`install/${installSlugs[0] ?? ""}`)}`;
+  const downloadHref = `/${locale}/download?next=${encodeURIComponent(buildDownloadInstallNext(installSlugs))}`;
   const collectionUrl = `${SITE_URL}/collections/${collection.slug}`;
   const installHint = truncated
     ? t("installHintTruncated", {
@@ -167,7 +168,6 @@ export function CollectionActionMenu({ collection }: Props) {
                 <a
                   href={downloadHref}
                   onClick={(e) => {
-                    console.log("downloadHref", petdexInstallUrl);
                     if (
                       e.metaKey ||
                       e.ctrlKey ||

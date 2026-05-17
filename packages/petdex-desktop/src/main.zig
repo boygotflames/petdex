@@ -1579,6 +1579,8 @@ const PetdexState = struct {
         try writeFileAll(self.io, root_dir, "index.html", html_doc);
         try copyAllSpritesheets(self.allocator, self.io, self.asset_root, pets.items);
 
+        const response = try std.fmt.bufPrint(output, "{{\"ok\":true,\"active\":\"{s}\"}}", .{active_slug});
+
         for (pets.items) |p| {
             self.allocator.free(p.slug);
             self.allocator.free(p.display_name);
@@ -1586,7 +1588,7 @@ const PetdexState = struct {
         }
         pets.deinit(self.allocator);
 
-        return std.fmt.bufPrint(output, "{{\"ok\":true,\"active\":\"{s}\"}}", .{active_slug});
+        return response;
     }
 
     fn setActiveCmd(context: *anyopaque, invocation: zero_native.bridge.Invocation, output: []u8) anyerror![]const u8 {
@@ -2174,6 +2176,7 @@ fn readDeepLinkFromPath(allocator: std.mem.Allocator, io: std.Io, path: []const 
     var file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return DeepLink{ .none = {} };
     defer file.close(io);
     const bytes = readFileAll(io, allocator, file, MAX_ACTIVE_BYTES) catch return DeepLink{ .none = {} };
+    defer allocator.free(bytes);
     return parseDeepLinkFromUrl(allocator, bytes) catch DeepLink{ .none = {} };
 }
 
@@ -2195,15 +2198,12 @@ fn readDeepLinkFromUrlArg(allocator: std.mem.Allocator, args: std.process.Args) 
         const arg: []const u8 = arg_z;
         const prefix = "petdex://";
         if (arg.len <= prefix.len or !std.mem.startsWith(u8, arg, prefix)) continue;
-        const owned = try allocator.dupe(u8, arg);
-        defer allocator.free(owned);
-        return parseDeepLinkFromUrl(allocator, owned) catch DeepLink{ .none = {} };
+        return parseDeepLinkFromUrl(allocator, arg) catch DeepLink{ .none = {} };
     }
     return DeepLink{ .none = {} };
 }
 
-fn parseDeepLinkFromUrl(allocator: std.mem.Allocator, raw: []u8) !DeepLink {
-    defer allocator.free(raw);
+fn parseDeepLinkFromUrl(allocator: std.mem.Allocator, raw: []const u8) !DeepLink {
     const trimmed = std.mem.trim(u8, raw, " \t\r\n");
     const prefix = "petdex://";
     if (trimmed.len <= prefix.len or !std.mem.startsWith(u8, trimmed, prefix)) {

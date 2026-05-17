@@ -29,6 +29,13 @@ export function buildPetdexInstallUrl(slugs: string[]): string {
   return `petdex://install?${query}`;
 }
 
+/** `/download?next=…` value: single `install/<slug>` or comma-separated batch. */
+export function buildDownloadInstallNext(slugs: string[]): string {
+  if (slugs.length === 0) return "install/";
+  if (slugs.length === 1) return `install/${slugs[0]}`;
+  return `install/${slugs.join(",")}`;
+}
+
 /** Navigate to a petdex:// URL with optional /download fallback (macOS). */
 export function openPetdexDeepLink(
   deepLink: string,

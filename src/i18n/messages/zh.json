@@ -1715,6 +1715,12 @@
         "hint": "将这只宠物添加到你的本地集合",
         "hint__fixme": true
       },
+      "installPets": {
+        "title": "安装 {count} 只宠物",
+        "hint": "将这些宠物添加到你的本地收藏",
+        "title__fixme": true,
+        "hint__fixme": true
+      },
       "stayUpdated": {
         "title": "保持更新",
         "title__fixme": true,
