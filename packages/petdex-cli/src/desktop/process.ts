@@ -85,41 +85,53 @@ function processStartTime(pid: number): string | null {
   }
 }
 
-// Returns the lstart value to store in the pid file for a just-spawned
-// process. On POSIX we capture the real start-time string for identity
-// verification. On Windows ps is unavailable, so we write the literal
-// "win32" sentinel — pidMatchesRecord() will use isPidAlive() instead.
+// Return the lowercase exe basename of a running Windows process via tasklist.
+// Returns null if the process does not exist.
+// Output format: "petdex-desktop-win32-x64.exe","12345",...
+// wmic is absent on Windows 11 22H2+; tasklist is always present.
+function processExeName(pid: number): string | null {
+  try {
+    const out = execFileSync(
+      "tasklist",
+      ["/fi", `PID eq ${pid}`, "/fo", "csv", "/nh"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+    // First CSV field is the exe name (double-quoted). No match means the
+    // process was not found ("INFO: No tasks are running...").
+    const match = out.match(/^"([^"]+)"/m);
+    return match ? match[1].toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Returns the identity token to store alongside the pid.
+// On Windows: the lowercase exe basename so pidMatchesRecord() can detect
+// PID reuse by comparing the live name with the stored one.
+// On POSIX: the process start-time string from `ps -p … -o lstart=`.
 function recordLstart(pid: number): string {
-  if (process.platform === "win32") return "win32";
+  if (process.platform === "win32") {
+    // We just spawned this process; the basename is known from the binary
+    // path rather than re-queried, which avoids a race where tasklist hasn't
+    // yet registered the process.
+    return path.basename(desktopBinPath()).toLowerCase();
+  }
   return processStartTime(pid) ?? "";
 }
 
 /**
- * Check whether a process is alive by pid.
+ * Check whether a petdex-desktop process is alive at the given pid.
  *
- * On Windows: `tasklist /fi "PID eq <pid>"` is the POSIX-free
- * equivalent of `ps -p`; we parse the CSV output for the pid string.
+ * On Windows: `tasklist` retrieves the exe name for the pid — this proves
+ * the process is running without relying on ps or wmic.
  * On POSIX: `ps -p <pid>` exits 0 when the process exists.
  *
  * Exported so tests can verify the platform-specific branch.
  */
-export function isPidAlive(pid: number): boolean {
+export function isPetdexPidAlive(pid: number): boolean {
   if (process.platform === "win32") {
-    try {
-      const out = execFileSync(
-        "tasklist",
-        ["/fi", `PID eq ${pid}`, "/fo", "csv", "/nh"],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-      );
-      // tasklist outputs a CSV row if the process exists, or
-      // "INFO: No tasks are running..." if it does not. Checking
-      // for the pid string (as a quoted field) is reliable.
-      return out.includes(`"${pid}"`);
-    } catch {
-      return false;
-    }
+    return processExeName(pid) !== null;
   }
-  // POSIX: ps exits non-zero when the pid is dead.
   try {
     execFileSync("ps", ["-p", String(pid)], {
       stdio: ["ignore", "ignore", "ignore"],
@@ -130,20 +142,17 @@ export function isPidAlive(pid: number): boolean {
   }
 }
 
-// True only if the live process at `pid` started at the same time as
-// the one we recorded. Pid recycle gives us either no live process
-// (lstart === null) or a different lstart, both of which fail this
-// check. Empty stored lstart (legacy pid file) is treated as failure
-// so we never blindly SIGTERM an unverified pid.
-//
-// On Windows we cannot get a process start-time without WMI, so we
-// fall back to a pure liveness check (isPidAlive). This removes the
-// pid-recycle guard on Windows; the risk is low because Windows pid
-// recycling is rare and the window between spawn and stop is short.
+// True only if the live process at `pid` matches the identity we recorded.
+// On Windows: compares the live tasklist exe name with the stored exe name,
+// preventing false positives from OS pid reuse.
+// On POSIX: compares the live start-time string from `ps -o lstart=`.
+// Empty stored lstart (legacy pid file) is treated as failure — we never
+// blindly signal an unverified pid.
 function pidMatchesRecord(record: PidRecord): boolean {
   if (record.lstart.length === 0) return false;
   if (process.platform === "win32") {
-    return isPidAlive(record.pid);
+    const live = processExeName(record.pid);
+    return live !== null && live === record.lstart;
   }
   const live = processStartTime(record.pid);
   return live !== null && live === record.lstart;

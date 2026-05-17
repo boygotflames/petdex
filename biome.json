@@ -13,7 +13,7 @@
       "!.next",
       "!dist",
       "!build",
-      "!packages/petdex-desktop/sidecar"
+      "!packages/petdex-desktop/sidecar/server.js"
     ]
   },
   "formatter": {

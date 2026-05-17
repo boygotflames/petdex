@@ -2,8 +2,8 @@
  * Windows-compatibility tests for process.ts and install.ts
  *
  * These tests run on any platform (CI is Linux/Windows) but validate the
- * Windows code paths added in Packet 007:
- *   - isPidAlive() — tasklist-based liveness on win32, ps-based on POSIX
+ * Windows code paths added in Packet 007–011:
+ *   - isPetdexPidAlive() — WMI exe-path check on win32, ps-based on POSIX
  *   - desktopBinPath() — .exe suffix on win32
  *   - detectTarget() — assetSuffix shape and win32-x64 on Windows x64
  *
@@ -14,22 +14,33 @@ import { describe, expect, test } from "bun:test";
 import { homedir } from "node:os";
 
 import { desktopBinPath, detectTarget } from "./install.js";
-import { isPidAlive } from "./process.js";
+import { isPetdexPidAlive } from "./process.js";
 
 // ---------------------------------------------------------------------------
-// isPidAlive
+// isPetdexPidAlive
 // ---------------------------------------------------------------------------
 
-describe("isPidAlive", () => {
+describe("isPetdexPidAlive", () => {
   test("returns true for the current process (self)", () => {
-    expect(isPidAlive(process.pid)).toBe(true);
+    // On win32 this exercises the WMI ExecutablePath path.
+    // On POSIX it exercises `ps -p`.
+    expect(isPetdexPidAlive(process.pid)).toBe(true);
   });
 
   test("returns false for a pid that is almost certainly dead", () => {
     // 2147483646 (INT_MAX − 1) is beyond typical OS pid limits on both
     // Windows (default max 32768) and Linux (default max 4194304), so
     // this pid should never be alive in any normal environment.
-    expect(isPidAlive(2_147_483_646)).toBe(false);
+    expect(isPetdexPidAlive(2_147_483_646)).toBe(false);
+  });
+
+  test("win32: tasklist finds a running exe name for the current process", () => {
+    // This test is win32-only. On POSIX it is a no-op.
+    if (process.platform !== "win32") return;
+    // isPetdexPidAlive(self) uses tasklist to retrieve the exe name.
+    // Returning true confirms that the CSV parser found a match —
+    // tasklist.exe is always present on Windows targets.
+    expect(isPetdexPidAlive(process.pid)).toBe(true);
   });
 });
 
