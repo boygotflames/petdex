@@ -72,7 +72,10 @@ function readPidFile(): PidRecord | null {
 // process's start time as a stable string ("Sat May  9 18:32:02 2026").
 // Exit code is non-zero when pid doesn't exist, so we return null.
 // We use execFileSync (no shell) to avoid quoting bugs.
+// Windows does not have ps; all callers already guard on platform,
+// but the early return makes the POSIX-only contract self-documenting.
 function processStartTime(pid: number): string | null {
+  if (process.platform === "win32") return null;
   try {
     const out = execFileSync("ps", ["-p", String(pid), "-o", "lstart="], {
       encoding: "utf8",
