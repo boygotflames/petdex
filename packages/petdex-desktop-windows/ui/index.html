@@ -131,7 +131,6 @@ const DEFAULT_STATE = "idle";
 
 let lastStateCounter = 0;
 let lastBubbleCounter = 0;
-let bubbleTimer = null;
 
 function applyState(stateId) {
   const s = PET_STATES[stateId] ?? PET_STATES[DEFAULT_STATE];
@@ -168,8 +167,10 @@ async function boot() {
 // CORS headers, so Chromium (WebView2) blocks all cross-origin fetch() from
 // the WebView. Using Tauri invoke() calls instead sidesteps this entirely.
 function startPolling() {
-  setInterval(pollState, 3000);
-  setInterval(pollBubble, 2000);
+  // 200ms matches the trusted Zig desktop cadence.
+  // 3s / 2s intervals would miss short-lived states (waving 700ms, running 820ms).
+  setInterval(pollState, 200);
+  setInterval(pollBubble, 200);
 }
 
 async function bootSidecar() {
@@ -196,19 +197,25 @@ async function pollState() {
 async function pollBubble() {
   try {
     const data = await invoke("read_runtime_bubble");
-    if (!data || !data.text) return;
+    if (!data) return;
     if (data.counter === lastBubbleCounter) return;
     lastBubbleCounter = data.counter;
-    showBubble(data.text);
+    // Pass text directly — showBubble treats empty as the clear signal.
+    showBubble(data.text ?? "");
   } catch {}
 }
 
 function showBubble(text) {
   const el = document.getElementById("bubble");
+  if (!text) {
+    // Empty text is the sidecar's explicit clear signal (written on boot).
+    el.textContent = "";
+    el.classList.remove("visible");
+    return;
+  }
   el.textContent = text;
+  // Bubble persists until next update — no auto-hide timeout.
   el.classList.add("visible");
-  if (bubbleTimer) clearTimeout(bubbleTimer);
-  bubbleTimer = setTimeout(() => el.classList.remove("visible"), 5000);
 }
 
 document.getElementById("root").addEventListener("mousedown", async () => {
