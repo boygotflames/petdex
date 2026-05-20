@@ -178,3 +178,4 @@ jobs:
           files: release/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+          prerelease: ${{ contains(inputs.tag || github.ref_name, '-rc') }}
